@@ -230,24 +230,13 @@
       flex: 1;
     }
 
-    .input-prefix {
-      position: absolute;
-      left: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 15px;
-      color: var(--neon2);
-      pointer-events: none;
-      font-weight: 600;
-      z-index: 2;
-    }
-
+    /* Removed .input-prefix - now full number input */
     .phone-input {
       width: 100%;
       background: rgba(255,255,255,0.06);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 16px 16px 16px 42px;
+      padding: 16px 16px;
       font-size: 16px;
       color: var(--text);
       outline: none;
@@ -541,22 +530,21 @@
         <i class="fa-solid fa-link"></i> Link Your Device
       </div>
       <div class="card-hint">
-        Enter your phone number with country code<br>
-        <strong>Format:</strong> +255 618 xxx xxxx (no spaces or + when submitting)
+        Enter your full phone number with country code<br>
+        <strong>Examples:</strong> 255618xxxxxx (TZ), 254712345678 (KE), 919876543210 (IN)
       </div>
 
       <div class="input-row">
         <div class="input-wrap">
-          <span class="input-prefix" aria-hidden="true">+255</span>
           <input
             class="phone-input"
             id="number"
             type="tel"
             inputmode="numeric"
-            pattern="[0-9]{9,15}"
-            placeholder="618 xxx xxxx"
+            pattern="[0-9]{10,15}"
+            placeholder="e.g., 255618123456"
             autocomplete="tel"
-            aria-label="Phone number without country code"
+            aria-label="Phone number with country code"
             maxlength="15"
           >
         </div>
@@ -676,15 +664,15 @@
       });
     }
 
-    // Submit handler
+    // Submit handler – REAL BACKEND CALL (no simulation)
     submitBtn.addEventListener('click', async () => {
       const raw = numInput.value.replace(/\D/g, '');
       codeArea.innerHTML = '';
       numInput.classList.remove('error');
 
-      if (!raw || raw.length < 9) {
+      if (!raw || raw.length < 7 || raw.length > 15) { // Basic validation for any country
         numInput.classList.add('error');
-        setStatus('Please enter a valid number (e.g., 618123456)', 'error');
+        setStatus('Please enter a valid phone number (7-15 digits with country code)', 'error');
         numInput.focus();
         return;
       }
@@ -693,17 +681,23 @@
       setStatus('Requesting pair code…', 'loading');
 
       try {
-        // ⚠️ Replace with your actual backend endpoint
-        const { data } = await axios.get(`/code?number=255${raw}`);
-        const code = data?.code || data?.pairCode || 'SERVICE-UNAVAILABLE';
-        setStatus('Pair code generated successfully!', 'success');
-        showCode(code);
+        // Real API endpoint – matches backend /code route with full number
+        const { data } = await axios.get(`/code?number=${raw}`);
+        
+        // Extract code from response (supports both 'code' and 'pairCode' fields)
+        const pairCode = data?.code || data?.pairCode;
+        
+        if (pairCode) {
+          setStatus('Pair code generated successfully!', 'success');
+          showCode(pairCode);
+        } else {
+          throw new Error(data?.message || 'Invalid response from server');
+        }
       } catch (err) {
         console.error('Pairing error:', err);
-        // Demo mode fallback (remove in production)
-        const demoCode = 'STANY-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-        setStatus('Demo mode: Code generated (connect backend for live)', 'success');
-        showCode(demoCode);
+        // Display error message from server if available
+        const errorMsg = err.response?.data?.message || err.message || 'Failed to get pair code. Please try again.';
+        setStatus(errorMsg, 'error');
       } finally {
         submitBtn.disabled = false;
       }
@@ -717,22 +711,6 @@
       numInput.classList.remove('error');
       if (statusEl.querySelector('.error')) setStatus('');
     });
-
-    // Format phone input visually (optional UX enhancement)
-    numInput.addEventListener('input', function(e) {
-      let val = e.target.value.replace(/\D/g, '').slice(0, 9);
-      // Auto-format as 618 xxx xxxx (visual only, raw value sent to API)
-      if (val.length > 3 && val.length <= 6) {
-        e.target.placeholder = `${val.slice(0,3)} xxx xxxx`;
-      } else if (val.length > 6) {
-        e.target.placeholder = `${val.slice(0,3)} ${val.slice(3,6)} ${val.slice(6)}`;
-      } else {
-        e.target.placeholder = '618 xxx xxxx';
-      }
-    });
-
-    // Pre-fill demo number for testing (remove in production)
-    // numInput.value = '618123456';
   </script>
 </body>
 </html>
