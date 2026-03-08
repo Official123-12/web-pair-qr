@@ -26,7 +26,7 @@
   <title>STANY PAIRING WEBSITE • QR Code</title>
   
   <!-- Font Awesome ONLY (no Google Fonts) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-pz5GxGzqJ8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V......" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-pz5GxGzqJ8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8V8......" crossorigin="anonymous" referrerpolicy="no-referrer">
   
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -718,7 +718,7 @@
     // Set current year
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    // ── QR CODE LOGIC ──
+    // ── QR CODE LOGIC WITH REAL BACKEND ENDPOINT ──
     const loading = document.getElementById('loading');
     const qrArea = document.getElementById('qr-area');
     const errorArea = document.getElementById('error-area');
@@ -726,34 +726,68 @@
     const statusEl = document.getElementById('status');
     const retryBtn = document.getElementById('retry-btn');
 
+    // Variable to store the refresh timeout
+    let refreshTimeout;
+
+    // Function to load QR code from backend
     async function loadQRCode() {
+      // Clear any pending refresh
+      if (refreshTimeout) clearTimeout(refreshTimeout);
+
       loading.style.display = 'flex';
       qrArea.style.display = 'none';
       errorArea.style.display = 'none';
       qrImage.classList.remove('loaded');
 
       try {
-        // ⚠️ Replace with your actual backend endpoint
-        // Example: const res = await fetch('/api/qr', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-        
-        // DEMO MODE: Simulate QR fetch (REMOVE IN PRODUCTION)
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Demo QR placeholder (use real API response: data.qr)
-        const demoQR = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=STANY-TZ-DEMO-' + Date.now();
-        
-        qrImage.src = demoQR;
-        
-        // Wait for image to load
-        await new Promise((resolve, reject) => {
-          qrImage.onload = () => { qrImage.classList.add('loaded'); resolve(); };
-          qrImage.onerror = reject;
+        // REAL BACKEND CALL - matches your Express route /qr
+        // Using fetch with GET request to /qr endpoint
+        const response = await fetch('/qr', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          // Include credentials if needed for sessions
+          credentials: 'same-origin'
         });
 
-        statusEl.textContent = 'Scan with WhatsApp • Code refreshes in 60s';
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `HTTP error ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Handle different response formats from your backend
+        // Common formats: { qr: 'base64string' } or { qrCode: 'base64string' } or { code: 'base64string' }
+        const qrData = data.qr || data.qrCode || data.code || data.pairCode;
+        
+        if (!qrData) {
+          throw new Error('No QR data in response');
+        }
+
+        // Check if it's a base64 image or a URL
+        if (qrData.startsWith('data:image') || qrData.startsWith('http')) {
+          qrImage.src = qrData;
+        } else {
+          // Assume it's raw base64 without prefix
+          qrImage.src = `data:image/png;base64,${qrData}`;
+        }
+
+        // Wait for image to load
+        await new Promise((resolve, reject) => {
+          qrImage.onload = () => {
+            qrImage.classList.add('loaded');
+            resolve();
+          };
+          qrImage.onerror = () => reject(new Error('Failed to load QR image'));
+        });
+
+        // Update status message if provided by backend
+        statusEl.textContent = data.message || 'Scan with WhatsApp • Code refreshes in 60s';
         
         // Auto-refresh QR every 60 seconds (WhatsApp requirement)
-        setTimeout(() => {
+        refreshTimeout = setTimeout(() => {
           if (qrArea.style.display !== 'none') {
             statusEl.textContent = 'Refreshing code…';
             loadQRCode();
@@ -765,7 +799,7 @@
         
       } catch (err) {
         console.error('QR fetch error:', err);
-        document.getElementById('error-msg').textContent = 'Failed to load QR. Check connection and retry.';
+        document.getElementById('error-msg').textContent = err.message || 'Failed to load QR. Check connection and retry.';
         loading.style.display = 'none';
         errorArea.style.display = 'flex';
       }
@@ -773,8 +807,21 @@
 
     retryBtn?.addEventListener('click', loadQRCode);
     
-    // Initial load
+    // Initial load when page loads
     document.addEventListener('DOMContentLoaded', loadQRCode);
+
+    // Optional: Listen for pairing success events from server
+    // If your backend supports WebSocket or Server-Sent Events for pairing status
+    /*
+    const eventSource = new EventSource('/qr/status');
+    eventSource.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.connected) {
+        statusEl.textContent = '✓ Device connected successfully!';
+        statusEl.style.color = 'var(--neon)';
+      }
+    };
+    */
 
     // ── CANVAS PARTICLES (Optimized) ──
     const canvas = document.getElementById('bg-canvas');
